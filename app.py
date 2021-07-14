@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask,jsonify
 
 
 app = Flask(__name__)
@@ -11,7 +11,7 @@ def hello_world():
 
 @app.route('/greeting')
 def my_greeting():
-    return = 'Welcome back to the ACEER training.'
+    return jsonify(message='Welcome back to the ACEER training.')
 
 
 if __name__ == '__main__':
