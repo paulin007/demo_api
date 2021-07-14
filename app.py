@@ -1,7 +1,16 @@
 from flask import Flask,jsonify, request
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import Column, Integer, String, Float
+import os
 
 
 app = Flask(__name__)
+basedir = os.path.abspath(os.path.dirname(__file__))
+# SQLALCHEMY_DATABASE_URI should be name exactly like otherwise it not going to work
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'bank.db')
+
+
+db = SQLAlchemy(app)
 
 
 @app.route('/')
