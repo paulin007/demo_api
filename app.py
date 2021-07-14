@@ -77,5 +77,53 @@ class TermDepositPrediction(db.Model):
     pred_eligible_term_deposit = Column(Boolean)
     inference_date = Column(Date)
 
+@app.cli.command('db_create')
+def db_create():
+    db.create_all()
+    print('Database created!')
+
+
+@app.cli.command('db_drop')
+def db_drop():
+    db.drop_all()
+    print('Database dropped!')
+
+
+@app.cli.command('db_seed')
+def db_seed():
+    account_1 = Account(age= 18,
+                     job='entrepreneur',
+                     marital='single',
+                     education='university.degree',
+                     default='yes',
+                     housing='no',
+                     loan='unknown',
+                     balance=1516,
+                     part_of_training=True)
+
+    account_2 = Account(age= 78,
+                     job='retired',
+                     marital='divorced',
+                     education='unknown',
+                     default='no',
+                     housing='yes',
+                     loan='yes',
+                     balance=6516,
+                     part_of_training=True)
+
+    db.session.add(account_1)
+    db.session.add(account_2)
+
+
+    paulin_user = User(first_name='Paulin',
+                     last_name='T',
+                     email='paulin@test.com',
+                     password='P@ssw0rd')
+
+    db.session.add(paulin_user)
+    db.session.commit()
+    print('Database seeded!')
+
+
 if __name__ == '__main__':
     app.run()
