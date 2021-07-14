@@ -11,7 +11,11 @@ def hello_world():
 
 @app.route('/greeting')
 def my_greeting():
-    return jsonify(message='Welcome back to the ACEER training.')
+    return jsonify(message='Welcome back to the ACEER training.'), 200
+
+@app.route('/not_found')
+def not_found():
+    return jsonify(message='That resource was not found'), 404
 
 
 if __name__ == '__main__':
