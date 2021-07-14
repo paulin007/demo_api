@@ -2,6 +2,7 @@ from flask import Flask,jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String, Float, Boolean, Date, ForeignKey
 import os
+from flask_marshmallow import Marshmallow
 
 
 app = Flask(__name__)
@@ -11,7 +12,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'ba
 
 
 db = SQLAlchemy(app)
-
+ma = Marshmallow(app)
 
 @app.route('/')
 def hello_world():
@@ -45,6 +46,13 @@ def parameters_modern(name: str, age: int):
         return jsonify(message="Welcome " + name + ", you are eligible to our term deposit", amout=100)
 
 
+@app.route('/accounts', methods=['GET'])
+def accounts():
+    accounts_list = Account.query.all()
+    #return jsonify(data=accounts_list)
+    result = accounts_schema.dump(accounts_list) # serialize results
+    return jsonify(result)
+
 # database models
 class User(db.Model):
     __tablename__ = 'users'
@@ -76,6 +84,31 @@ class TermDepositPrediction(db.Model):
     model_version = Column(String) # v0.1
     pred_eligible_term_deposit = Column(Boolean)
     inference_date = Column(Date)
+
+
+class UserSchema(ma.Schema):
+    class Meta:
+        fields = ('id', 'first_name', 'last_name', 'email', 'password')
+
+
+class AccountSchema(ma.Schema):
+    class Meta:
+        fields = ('id', 'age', 'job', 'marital', 'education', 'default', 'housing', 'loan', 'balance')
+
+class TermDepositPredictionSchema(ma.Schema):
+    class Meta:
+        fields = ('id', 'account_id', 'model_name', 'model_version', 'pred_eligible_term_deposit', 'inference_date')
+
+# instantiate two different copies of each schema
+# give ability to serialize one single or multiple objects
+user_schema = UserSchema()
+users_schema = UserSchema(many=True) # plurial 
+
+account_schema = AccountSchema()
+accounts_schema = AccountSchema(many=True)
+
+prediction_schema = TermDepositPredictionSchema()
+predictions_schema = TermDepositPredictionSchema(many=True)
 
 @app.cli.command('db_create')
 def db_create():
