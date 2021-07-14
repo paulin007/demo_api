@@ -1,6 +1,6 @@
 from flask import Flask,jsonify, request
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String, Float, Boolean, Date, ForeignKey
 import os
 
 
@@ -44,6 +44,38 @@ def parameters_modern(name: str, age: int):
     else:
         return jsonify(message="Welcome " + name + ", you are eligible to our term deposit", amout=100)
 
+
+# database models
+class User(db.Model):
+    __tablename__ = 'users'
+    id = Column(Integer, primary_key=True)
+    first_name = Column(String)
+    last_name = Column(String)
+    email = Column(String, unique=True)
+    password = Column(String)
+
+
+class Account(db.Model):
+    __tablename__ = 'accounts'
+    id = Column(Integer, primary_key=True)
+    age = Column(Integer)
+    job = Column(String) #  type of job (categorical: 'admin.','blue-collar','entrepreneur','housemaid','management','retired','self-employed','services','student','technician','unemployed','unknown')
+    marital = Column(String) # marital status (categorical: 'divorced','married','single','unknown'; note: 'divorced' means divorced or widowed)
+    education = Column(String) # (categorical: 'basic.4y','basic.6y','basic.9y','high.school','illiterate','professional.course','university.degree','unknown')
+    default = Column(String) # has credit in default? (categorical: 'no','yes','unknown')
+    housing = Column(String) # has housing loan? (categorical: 'no','yes','unknown')
+    loan = Column(String) # has personal loan? (categorical: 'no','yes','unknown')
+    balance = Column(Float)
+    part_of_training = Column(Boolean)
+
+class TermDepositPrediction(db.Model):
+    __tablename__ = 'Predictions'
+    id = Column(Integer, primary_key=True)
+    account_id = Column(Integer, ForeignKey('accounts.id'))
+    model_name = Column(String) # term deposit predition
+    model_version = Column(String) # v0.1
+    pred_eligible_term_deposit = Column(Boolean)
+    inference_date = Column(Date)
 
 if __name__ == '__main__':
     app.run()
