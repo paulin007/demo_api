@@ -98,6 +98,7 @@ def account_details(account_id: int):
         return jsonify(message="That account does not exist"), 404
 
 @app.route('/add_account', methods=['POST'])
+@jwt_required()
 def add_account():
     try:
         app.logger.info("adding a new account data..")
