@@ -5,6 +5,8 @@ import os
 from flask_marshmallow import Marshmallow
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token
 import config as cg
+import datetime
+import sys
 
 app = Flask(__name__)
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -97,51 +99,98 @@ def account_details(account_id: int):
 
 @app.route('/add_account', methods=['POST'])
 def add_account():
-    account_id = int(request.form['account_id'])
-    test = Account.query.filter_by(id=account_id).first()
-    if test:
-        return jsonify("There is already a account with that id"), 409
-    else:
-        age = int(request.form['age'])
-        job = request.form['job']
-        marital = request.form['marital']
-        education = request.form['education']
-        default = request.form['default']
-        housing = request.form['housing']
-        loan = request.form['loan']
-        balance = float(request.form['balance'])
-        pred_eligible_term_deposit = bool(request.form['pred_eligible_term_deposit'])
+    try:
+        app.logger.info("adding a new account data..")
+        account_id = int(request.form['account_id'])
+        test = Account.query.filter_by(id=account_id).first()
+        if test:
+            return jsonify("There is already a account with that id"), 409
+        else:
+            age = int(request.form['age'])
+            job = request.form['job']
+            marital = request.form['marital']
+            education = request.form['education']
+            default = request.form['default']
+            housing = request.form['housing']
+            loan = request.form['loan']
+            balance = float(request.form['balance'])
+            pred_eligible_term_deposit = bool(request.form['pred_eligible_term_deposit'])
+            
+            if job not in cg.CAT_job:
+                return jsonify(message="Job '"+job+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_job) ), 400
+            if marital not in cg.CAT_marital:
+                return jsonify(message="marital '"+marital+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_marital) ), 400
+            if education not in cg.CAT_education:
+                return jsonify(message="education '"+marital+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_education) ), 400
+            if default not in cg.CAT_BOOL_unknown:
+                return jsonify(message="default '"+marital+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_BOOL_unknown) ), 400
+            if housing not in cg.CAT_BOOL_unknown:
+                return jsonify(message="housing '"+marital+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_BOOL_unknown) ), 400
+            if loan not in cg.CAT_BOOL_unknown:
+                return jsonify(message="loan '"+marital+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_BOOL_unknown) ), 400
+
+            new_account = Account(id=account_id,
+                                age=age,
+                                job=job,
+                                marital=marital,
+                                education=education,
+                                default=default,
+                                housing=housing,
+                                loan=loan,
+                                balance=balance,
+                                pred_eligible_term_deposit = pred_eligible_term_deposit,
+                                part_of_training=False)
+
+            db.session.add(new_account)
+            db.session.commit()
+    except BaseException as ex:
+        import traceback
+        # Get current system exception
+        ex_type, ex_value, ex_traceback = sys.exc_info()
+
+        # Extract unformatter stack traces as tuples
+        trace_back = traceback.extract_tb(ex_traceback)
+
+        # Format stacktrace
+        stack_trace = list()
+        app.logger.error(ex)
+        for trace in trace_back:
+            stack_trace.append("File : %s , Line : %d, Func.Name : %s, Message : %s" % (trace[0], trace[1], trace[2], trace[3]))
         
-        if job not in cg.CAT_job:
-            return jsonify(message="Job '"+job+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_job) ), 400
-        if marital not in cg.CAT_marital:
-            return jsonify(message="marital '"+marital+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_marital) ), 400
-        if education not in cg.CAT_education:
-            return jsonify(message="education '"+marital+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_education) ), 400
-        if default not in cg.CAT_BOOL_unknown:
-            return jsonify(message="default '"+marital+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_BOOL_unknown) ), 400
-        if housing not in cg.CAT_BOOL_unknown:
-            return jsonify(message="housing '"+marital+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_BOOL_unknown) ), 400
-        if loan not in cg.CAT_BOOL_unknown:
-            return jsonify(message="loan '"+marital+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_BOOL_unknown) ), 400
-
-        new_account = Account(id=account_id,
-                            age=age,
-                            job=job,
-                            marital=marital,
-                            education=education,
-                            default=default,
-                            housing=housing,
-                            loan=loan,
-                            balance=balance,
-                            pred_eligible_term_deposit = pred_eligible_term_deposit,
-                            part_of_training=False)
-
-        db.session.add(new_account)
+        my_error = ErrorAPI()
+        my_error.errorType = "-"
+        my_error.errorMsg=str(ex)+"  "+str(stack_trace)
+        if request.remote_addr != None:
+            my_error.ipAddress = request.remote_addr
+        db.session.add(my_error)
         db.session.commit()
-        return jsonify(message="You added a account data"), 201
+        
+        return send_critical_msg(str(ex)+"  "+str(stack_trace))
+    return jsonify(message="You added a account data"), 201
+
+def send_error_msg(msg):
+    app.logger.error(msg)
+    return (jsonify({'status': 'error','msg':msg}), 400)
+
+def send_critical_msg(msg):
+    app.logger.critical(msg)
+    return (jsonify({'status': 'error_on_server','msg':msg}), 500)
+
+def send_success_msg(msg):
+    app.logger.info(msg)
+    return (jsonify({'status': 'success','msg':msg}), 200)
+
 
 # database models
+
+class ErrorAPI(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    errorType = db.Column(db.String(255), index=False, unique=False, nullable=True)
+    created = db.Column(db.DateTime, index=False, unique=False, nullable=True,
+        default=datetime.datetime.now()
+    )
+    errorMsg = db.Column(db.Text, index=False, unique=False, nullable=True)
+
 class User(db.Model):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
