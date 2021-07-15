@@ -86,6 +86,15 @@ def login():
     else:
         return jsonify(message="Bad email or password"), 401
 
+@app.route('/account_details/<int:account_id>', methods=["GET"])
+def account_details(account_id: int):
+    account = Account.query.filter_by(id=account_id).first()
+    if account:
+        result = account_schema.dump(account) # serialization single version
+        return jsonify(result)
+    else:
+        return jsonify(message="That account does not exist"), 404
+
 # database models
 class User(db.Model):
     __tablename__ = 'users'
