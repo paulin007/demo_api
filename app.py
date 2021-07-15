@@ -4,7 +4,7 @@ from sqlalchemy import Column, Integer, String, Float, Boolean, Date, ForeignKey
 import os
 from flask_marshmallow import Marshmallow
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token
-
+import config as cg
 
 app = Flask(__name__)
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -95,6 +95,52 @@ def account_details(account_id: int):
     else:
         return jsonify(message="That account does not exist"), 404
 
+@app.route('/add_account', methods=['POST'])
+def add_account():
+    account_id = int(request.form['account_id'])
+    test = Account.query.filter_by(id=account_id).first()
+    if test:
+        return jsonify("There is already a account with that id"), 409
+    else:
+        age = int(request.form['age'])
+        job = request.form['job']
+        marital = request.form['marital']
+        education = request.form['education']
+        default = request.form['default']
+        housing = request.form['housing']
+        loan = request.form['loan']
+        balance = float(request.form['balance'])
+        pred_eligible_term_deposit = bool(request.form['pred_eligible_term_deposit'])
+        
+        if job not in cg.CAT_job:
+            return jsonify(message="Job '"+job+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_job) ), 400
+        if marital not in cg.CAT_marital:
+            return jsonify(message="marital '"+marital+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_marital) ), 400
+        if education not in cg.CAT_education:
+            return jsonify(message="education '"+marital+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_education) ), 400
+        if default not in cg.CAT_BOOL_unknown:
+            return jsonify(message="default '"+marital+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_BOOL_unknown) ), 400
+        if housing not in cg.CAT_BOOL_unknown:
+            return jsonify(message="housing '"+marital+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_BOOL_unknown) ), 400
+        if loan not in cg.CAT_BOOL_unknown:
+            return jsonify(message="loan '"+marital+"'"+" is incorrect.. Should be: "+",".join(cg.CAT_BOOL_unknown) ), 400
+
+        new_account = Account(id=account_id,
+                            age=age,
+                            job=job,
+                            marital=marital,
+                            education=education,
+                            default=default,
+                            housing=housing,
+                            loan=loan,
+                            balance=balance,
+                            pred_eligible_term_deposit = pred_eligible_term_deposit,
+                            part_of_training=False)
+
+        db.session.add(new_account)
+        db.session.commit()
+        return jsonify(message="You added a account data"), 201
+
 # database models
 class User(db.Model):
     __tablename__ = 'users'
@@ -116,6 +162,7 @@ class Account(db.Model):
     housing = Column(String) # has housing loan? (categorical: 'no','yes','unknown')
     loan = Column(String) # has personal loan? (categorical: 'no','yes','unknown')
     balance = Column(Float)
+    pred_eligible_term_deposit = Column(Boolean) # grouth true
     part_of_training = Column(Boolean)
 
 class TermDepositPrediction(db.Model):
