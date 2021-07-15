@@ -16,6 +16,11 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix, accuracy_score
 import joblib
 
+from functools import wraps
+from time import monotonic
+from sys import exc_info
+import logging
+
 app = Flask(__name__)
 basedir = os.path.abspath(os.path.dirname(__file__))
 # SQLALCHEMY_DATABASE_URI should be name exactly like otherwise it not going to work
@@ -25,6 +30,36 @@ app.config['JWT_SECRET_KEY'] = 'super-secret'  # change this
 db = SQLAlchemy(app)
 ma = Marshmallow(app)
 jwt = JWTManager(app)
+
+class MetricsClient:
+    def __init__(self, url):
+        # TODO: Create system client here
+        self.url = url
+
+    def __call__(self, fn):
+        @wraps(fn)
+        def wrapper(*args, **kw):
+            start = monotonic()
+            error = None
+            try:
+                return fn(*args, **kw)
+            finally:
+                duration = monotonic() - start
+                # TODO: send metric to server
+                app.logger.info('%s took %.3fsec', fn.__name__, duration)
+                print(fn.__name__+' took: '+str(duration) +' sec')
+                _, error, _ = exc_info()
+                if error is not None:
+                    app.logger.error('%s error: %s', fn.__name__, error)
+
+        return wrapper
+
+    def __repr__(self):
+        name = self.__class__.__name__
+        return f'{name}({self.url!r})'
+
+metrics = MetricsClient('http://localhost:5000')
+
 
 print("loading data..")
 #df = pd.read_csv(os.path.join(basedir, "../data/bank.csv"), header = None, names=['age','job','marital','education','default','balance','housing',
@@ -66,6 +101,7 @@ if os.path.isfile(model_filename):
     rfc = joblib.load(model_filename)
 
 @app.route('/training')
+@metrics
 def model_training():
     try:
         x_train,x_val,y_train,y_val=train_test_split(X_final,y,train_size=0.8,random_state=42)
@@ -447,6 +483,8 @@ def db_seed():
     db.session.add(paulin_user)
     db.session.commit()
     print('Database seeded!')
+
+
 
 
 if __name__ == '__main__':
