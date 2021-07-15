@@ -7,6 +7,14 @@ from flask_jwt_extended import JWTManager, jwt_required, create_access_token
 import config as cg
 import datetime
 import sys
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import confusion_matrix, accuracy_score
+import joblib
 
 app = Flask(__name__)
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -17,6 +25,126 @@ app.config['JWT_SECRET_KEY'] = 'super-secret'  # change this
 db = SQLAlchemy(app)
 ma = Marshmallow(app)
 jwt = JWTManager(app)
+
+print("loading data..")
+#df = pd.read_csv(os.path.join(basedir, "../data/bank.csv"), header = None, names=['age','job','marital','education','default','balance','housing',
+#                                                            'loan','contact','day_of_week','month','duration','campaign','pdays',
+#                                                            'y'])
+df = pd.read_csv(os.path.join(basedir, "../data/bank.csv"))
+print("data preprocessing..")
+#drop campaign related columns
+df.drop(df.iloc[:, 8:16], inplace = True, axis = 1)
+X = df.iloc[:, :-1].values
+y = df.iloc[:, -1].values
+
+#extract numeric features 
+numeric_data = df.iloc[:, [0, 5]].values
+numeric_df = pd.DataFrame(numeric_data, dtype = object)
+numeric_df.columns = ['age', 'balance']
+
+#standard scaling age
+age_std_scale = StandardScaler()
+numeric_df['age'] = age_std_scale.fit_transform(numeric_df[['age']])
+#standard scaling balance
+balance_std_scale = StandardScaler()
+numeric_df['balance'] = balance_std_scale.fit_transform(numeric_df[['balance']])
+
+#extract categoric features
+X_categoric = df.iloc[:, [1,2,3,4,6,7]].values
+
+#onehotencoding
+ohe = OneHotEncoder()
+categoric_data = ohe.fit_transform(X_categoric).toarray()
+categoric_df = pd.DataFrame(categoric_data)
+categoric_df.columns = ohe.get_feature_names()
+
+#combine numeric and categorix
+X_final = pd.concat([numeric_df, categoric_df], axis = 1)
+
+model_filename = os.path.join(basedir, '../models/finalized_model.pickle')
+if os.path.isfile(model_filename):
+    rfc = joblib.load(model_filename)
+
+@app.route('/training')
+def model_training():
+    try:
+        x_train,x_val,y_train,y_val=train_test_split(X_final,y,train_size=0.8,random_state=42)
+        print("model training")
+        #train model
+        rfc = RandomForestClassifier(n_estimators = 100)
+        rfc.fit(x_train, y_train)
+        y_pred = rfc.predict(x_val)
+        app.logger.info(confusion_matrix(y_val,y_pred))
+        accuracy = round(accuracy_score(y_val,y_pred),3)
+        app.logger.info("model saving")
+        joblib.dump(rfc, model_filename)
+        app.logger.info("All done")
+        return send_success_msg("training complete successfully with accuracy of "+str(accuracy))
+    except BaseException as ex:
+        import traceback
+        # Get current system exception
+        ex_type, ex_value, ex_traceback = sys.exc_info()
+        trace_back = traceback.extract_tb(ex_traceback)
+        # Format stacktrace
+        stack_trace = list()
+        app.logger.error(ex)
+        for trace in trace_back:
+            stack_trace.append("File : %s , Line : %d, Func.Name : %s, Message : %s" % (trace[0], trace[1], trace[2], trace[3]))
+        
+        my_error = ErrorAPI()
+        my_error.errorType = "TRAINING_ERROR"
+        my_error.errorMsg=str(ex)+"  "+str(stack_trace)
+        if request.remote_addr != None:
+            my_error.ipAddress = request.remote_addr
+        db.session.add(my_error)
+        db.session.commit()
+        
+        return send_critical_msg(str(ex)+"  "+str(stack_trace))
+
+@app.route('/predict', methods=['POST'])
+@jwt_required()
+def predict():
+    try:
+        data_categoric = np.array([request.form["job"], request.form["marital"], 
+                                request.form["education"], request.form["default"], request.form["housing"],
+                                request.form["loan"]])
+        data_categoric = np.reshape(data_categoric, (1, -1))
+        data_categoric = ohe.transform(data_categoric).toarray()
+    
+        data_age = np.array([int(request.form["age"])])
+        data_age = np.reshape(data_age, (1, -1))
+        data_age = np.array(age_std_scale.transform(data_age))
+
+        data_balance = np.array([ float(request.form["balance"])])
+        data_balance= np.reshape(data_balance, (1, -1))
+        data_balance = np.array(balance_std_scale.transform(data_balance))
+
+        data_final = np.column_stack((data_age, data_balance, data_categoric))
+        data_final = pd.DataFrame(data_final, dtype=object)
+
+        #make predicon using model
+        prediction = rfc.predict(data_final)
+    except BaseException as ex:
+        import traceback
+        # Get current system exception
+        ex_type, ex_value, ex_traceback = sys.exc_info()
+        trace_back = traceback.extract_tb(ex_traceback)
+        # Format stacktrace
+        stack_trace = list()
+        app.logger.error(ex)
+        for trace in trace_back:
+            stack_trace.append("File : %s , Line : %d, Func.Name : %s, Message : %s" % (trace[0], trace[1], trace[2], trace[3]))
+        
+        my_error = ErrorAPI()
+        my_error.errorType = "PREDICT_ERROR"
+        my_error.errorMsg=str(ex)+"  "+str(stack_trace)
+        if request.remote_addr != None:
+            my_error.ipAddress = request.remote_addr
+        db.session.add(my_error)
+        db.session.commit()
+        
+        return send_critical_msg(str(ex)+"  "+str(stack_trace))
+    return jsonify(prediction=prediction[0]), 200
 
 @app.route('/')
 def hello_world():

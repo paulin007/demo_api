@@ -3,3 +3,4 @@
 *.db
 data
 models
+src/__pycache__
