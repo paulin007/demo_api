@@ -182,6 +182,30 @@ def send_success_msg(msg):
     return (jsonify({'status': 'success','msg':msg}), 200)
 
 
+@app.route('/update_ground_truth', methods=['PUT'])
+@jwt_required()
+def update_ground_truth():
+    app.logger.info("adding a new account data..")
+    account_id = int(request.form['account_id'])
+    account = Account.query.filter_by(id=account_id).first()
+    if account:
+        account.pred_eligible_term_deposit = bool(request.form['pred_eligible_term_deposit'])
+        db.session.commit()
+        return jsonify(message="You ground_truth have been updated successfully"), 202
+    else:
+        return jsonify("The account doesn't exist"), 404
+
+@app.route('/remove_account/<int:account_id>', methods=['DELETE'])
+@jwt_required()
+def remove_account(account_id: int):
+    account = Account.query.filter_by(id=account_id).first()
+    if account:
+        db.session.delete(account)
+        db.session.commit()
+        return jsonify(message="You deleted a Account"), 202
+    else:
+        return jsonify(message="That Account does not exist"), 404
+
 # database models
 
 class ErrorAPI(db.Model):
