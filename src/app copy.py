@@ -60,6 +60,45 @@ class MetricsClient:
 
 metrics = MetricsClient('http://localhost:5000')
 
+class ErrorClient:
+    def __init__(self, url):
+        # TODO: Create system client here
+        self.url = url
+
+    def __call__(self, fn):
+        @wraps(fn)
+        def report_errors(fn):
+            fn.num_errors = 0
+
+            @wraps(fn)
+            def wrapper(*args, **kw):
+                try:
+                    return fn(*args, **kw)
+                finally:
+                    _, error, _ = exc_info()
+                    if error is not None:
+                        print("there is an error")
+                        fn.num_errors += 1
+                        logging.error(
+                            '%s %d errors (%s)', fn.__name__, fn.num_errors, error)
+                        print(fn.__name__+' took: '+str(fn.num_errors) +' errors')
+            return wrapper
+
+    def __repr__(self):
+        name = self.__class__.__name__
+        return f'{name}({self.url!r})'
+
+report_errors = ErrorClient('http://localhost:5000')
+
+
+@app.route('/report_errors')
+@report_errors
+def div():
+    try:
+        a= 1 / 0
+    except ZeroDivisionError:
+        pass
+    return "aaa"
 
 print("loading data..")
 #df = pd.read_csv(os.path.join(basedir, "../data/bank.csv"), header = None, names=['age','job','marital','education','default','balance','housing',
@@ -415,25 +454,12 @@ class TermDepositPrediction(db.Model):
 
 class UserSchema(ma.Schema):
     class Meta:
-        model = User
         fields = ('id', 'first_name', 'last_name', 'email', 'password')
-    
-    #users = ma.HyperlinkRelated("user_detail")
-
 
 
 class AccountSchema(ma.Schema):
     class Meta:
-        model = Account
         fields = ('id', 'age', 'job', 'marital', 'education', 'default', 'housing', 'loan', 'balance')
-    #accounts = ma.HyperlinkRelated("account_detail")
-         # Smart hyperlinking
-    _links = ma.Hyperlinks(
-        {
-            "self": ma.URLFor("account_details", values=dict(id="<id>")),
-            "collection": ma.URLFor("accounts"),
-        }
-    )
 
 class TermDepositPredictionSchema(ma.Schema):
     class Meta:

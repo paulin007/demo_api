@@ -35,7 +35,7 @@ reload=True
 #       range.
 #
 
-bind = '0.0.0.1:5001'
+bind = '0.0.0.1:6001'
 backlog = 2048
 
 #
